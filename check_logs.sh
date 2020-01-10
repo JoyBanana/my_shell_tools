@@ -1,8 +1,12 @@
 #!/bin/bash
 
-filelist=/opt/monitor/log_list.cfg
+FILELIST=/opt/monitor/log_list.cfg
 RESULT=/home/nagios/check_logs_all
-VERSION='3.0'
+#sec*min
+QUERY_CIRCAL=$((60*60))
+CURRENT_TIMESTAMP=`date '+%s'`
+
+VERSION='3.2'
 
 while [ -n "$1" ]
 do
@@ -13,38 +17,33 @@ do
         shift
 done
 
+
 >$RESULT
 
 chown -R nagios.nagios $RESULT
 
-cat $filelist | while read i
+cat $FILELIST | while read i
 do
-        filepath=`echo $i | awk '{print $1}'`
-        timestamp=`echo $i | awk '{print $2}'`
-
-        B="#"
-        #shi fou zhu shi diao le
-        if [[ ! $filepath == $B* ]]
+	filepath=`echo $i | awk '{print $1}'`
+        head_include="#"
+        #check file ignored
+        if [[ ! $filepath == $head_include* ]]
         then
-                newTimestamp=`stat -c %Y $filepath`
+                nowTimestamp=`stat -c %Y $filepath`
                 check_file_empty=`tail -n 5 $filepath`
-
-                #check log file isempty 
+                #check log file is empty 
                 if [ "$check_file_empty" == '' ]
                 then
                         echo "$filepath is empty.\n" >> $RESULT
                 else
-                        #check timestamp changes
-                        if [ $newTimestamp == $timestamp ]
+                        #check timestamp change
+			time_c=$(($CURRENT_TIMESTAMP-$nowTimestamp))
+                        if [ $time_c -gt $QUERY_CIRCAL ]
                         then
-                                echo "$filepath does not changed for a while.\n" >> $RESULT
-                        else
-                                filepath_Escape=${filepath//\//\\\/}
-                                sed -i "s/$filepath_Escape[[:space:]]$timestamp/$filepath_Escape\ $newTimestamp/g" $filelist
+                                echo "$filepath not changed.\n" >> $RESULT
                         fi
                         #check error
                         errorCount=`tail -n 200 $filepath | egrep "Error|Exception" | wc -l`
-
                         if [ ! $errorCount == 0 ]
                         then
                                 echo "error found in $filepath \n" >> $RESULT
