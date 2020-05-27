@@ -6,7 +6,7 @@ RESULT=/home/nagios/check_logs_all
 QUERY_CIRCAL=$((60*60))
 CURRENT_TIMESTAMP=`date '+%s'`
 
-VERSION='3.2'
+VERSION='3.3'
 
 while [ -n "$1" ]
 do
@@ -22,6 +22,7 @@ done
 
 chown -R nagios.nagios $RESULT
 
+
 cat $FILELIST | while read i
 do
 	filepath=`echo $i | awk '{print $1}'`
@@ -30,6 +31,7 @@ do
         if [[ ! $filepath == $head_include* ]]
         then
                 nowTimestamp=`stat -c %Y $filepath`
+		user_check_time=`echo $i | awk '{print $2}'`
                 check_file_empty=`tail -n 5 $filepath`
                 #check log file is empty 
                 if [ "$check_file_empty" == '' ]
@@ -38,19 +40,29 @@ do
                 else
                         #check timestamp change
 			time_c=$(($CURRENT_TIMESTAMP-$nowTimestamp))
-                        if [ $time_c -gt $QUERY_CIRCAL ]
-                        then
-                                echo "$filepath not changed.\n" >> $RESULT
+			if [ -n "$user_check_time" ]
+			then
+				#如果第二个是自定义时间，那么用它来计算
+				if [ $time_c -gt $user_check_time ]
+				then
+					echo "$filepath not changed.\n" >> $RESULT
+				fi
+			else if [ $time_c -gt $QUERY_CIRCAL ]
+			then
+				echo "$filepath not changed.\n" >> $RESULT
                         fi
-                        #check error
-                        errorCount=`tail -n 200 $filepath | egrep "Error|Exception" | wc -l`
-                        if [ ! $errorCount == 0 ]
-                        then
-                                echo "error found in $filepath \n" >> $RESULT
-                        fi
+			fi
+			#check error
+                        #errorCount=`tail -n 200 $filepath | egrep "Error|Exception" | wc -l`
+                        #if [ ! $errorCount == 0 ]
+                        #then
+                        #        echo "error found in $filepath \n" >> $RESULT
+                        #fi	
                 fi
         fi
 done
+
+
 
 if [ "`cat $RESULT`" == ""  ]
 then
